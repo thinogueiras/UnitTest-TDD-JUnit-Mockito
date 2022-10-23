@@ -6,6 +6,7 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 
+import qa.thinogueiras.dao.LocacaoDAO;
 import qa.thinogueiras.entidades.Filme;
 import qa.thinogueiras.entidades.Locacao;
 import qa.thinogueiras.entidades.Usuario;
@@ -13,6 +14,9 @@ import qa.thinogueiras.exceptions.LocadoraException;
 import qa.thinogueiras.utils.DataUtils;
 
 public class LocacaoService {
+	
+	private LocacaoDAO dao;
+	private SPCService spcService;
 	
 	public Locacao alugarFilme(Usuario usuario, List<Filme> filmes) throws LocadoraException {		
 		if(usuario == null) {
@@ -33,6 +37,10 @@ public class LocacaoService {
 			if(filme.getPrecoLocacao() == 0) {
 				throw new LocadoraException("Filme sem preço");
 			}			
+		}
+		
+		if(spcService.getStatusSPC(usuario)) {
+			throw new LocadoraException("Usuário negativado");
 		}
 		
 		Locacao locacao = new Locacao();
@@ -60,8 +68,18 @@ public class LocacaoService {
 		if(DataUtils.verificarDiaSemana(dataEntrega, Calendar.SUNDAY)) {
 			dataEntrega = adicionarDias(dataEntrega, 1);
 		}
+		
 		locacao.setDataRetorno(dataEntrega);		
+		dao.salvar(locacao);
 		
 		return locacao;		
-	}	
+	}
+	
+	public void setLocacaoDAO(LocacaoDAO dao) {
+		this.dao = dao;
+	}
+	
+	public void setSPCService(SPCService spc) {
+		spcService = spc;
+	}
 }
