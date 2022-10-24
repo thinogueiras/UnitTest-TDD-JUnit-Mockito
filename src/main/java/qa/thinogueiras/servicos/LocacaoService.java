@@ -1,6 +1,8 @@
 package qa.thinogueiras.servicos;
 
 import static qa.thinogueiras.utils.DataUtils.adicionarDias;
+import static qa.thinogueiras.utils.DataUtils.obterDataComDiferencaDias;
+import static qa.thinogueiras.utils.DataUtils.verificarDiaSemana;
 
 import java.util.Calendar;
 import java.util.Date;
@@ -11,12 +13,12 @@ import qa.thinogueiras.entidades.Filme;
 import qa.thinogueiras.entidades.Locacao;
 import qa.thinogueiras.entidades.Usuario;
 import qa.thinogueiras.exceptions.LocadoraException;
-import qa.thinogueiras.utils.DataUtils;
 
 public class LocacaoService {
 	
 	private LocacaoDAO dao;
 	private SPCService spcService;
+	private EmailService emailService;
 	
 	public Locacao alugarFilme(Usuario usuario, List<Filme> filmes) throws LocadoraException {		
 		if(usuario == null) {
@@ -39,7 +41,15 @@ public class LocacaoService {
 			}			
 		}
 		
-		if(spcService.getStatusSPC(usuario)) {
+		boolean negativado;
+		
+		try {
+			negativado = spcService.getStatusSPC(usuario);				
+		} catch (Exception e) {
+			throw new LocadoraException("Erro na consulta ao SPC");			
+		}
+		
+		if(negativado) {
 			throw new LocadoraException("Usuário negativado");
 		}
 		
@@ -59,13 +69,16 @@ public class LocacaoService {
 				case 4: valorFilme *= 0.25; break;
 				case 5: valorFilme *= 0.00; break;			
 			}
+			
 			valorTotal += valorFilme;			
 		}
+		
 		locacao.setValor(valorTotal);
 		
 		Date dataEntrega = new Date();
 		dataEntrega = adicionarDias(dataEntrega, 1);
-		if(DataUtils.verificarDiaSemana(dataEntrega, Calendar.SUNDAY)) {
+		
+		if(verificarDiaSemana(dataEntrega, Calendar.SUNDAY)) {
 			dataEntrega = adicionarDias(dataEntrega, 1);
 		}
 		
@@ -75,11 +88,22 @@ public class LocacaoService {
 		return locacao;		
 	}
 	
-	public void setLocacaoDAO(LocacaoDAO dao) {
-		this.dao = dao;
+	public void notificarAtrasosNaDevolucao() {
+		List<Locacao> locacoes = dao.obterLocacoesPendentes();
+		for(Locacao locacao: locacoes) {
+			if(locacao.getDataRetorno().before(new Date())) {
+				emailService.notificarAtrasoLocacao(locacao.getUsuario());				
+			}
+		}
 	}
 	
-	public void setSPCService(SPCService spc) {
-		spcService = spc;
+	public void prorrogarLocacao(Locacao locacao, int dias) {
+		Locacao novaLocacao = new Locacao();
+		novaLocacao.setUsuario(locacao.getUsuario());
+		novaLocacao.setFilmes(locacao.getFilmes());
+		novaLocacao.setDataLocacao(new Date());
+		novaLocacao.setDataRetorno(obterDataComDiferencaDias(dias));
+		novaLocacao.setValor(locacao.getValor() * dias);
+		dao.salvar(novaLocacao);
 	}
 }

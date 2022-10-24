@@ -1,6 +1,7 @@
 package qa.thinogueiras.servicos;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.MockitoAnnotations.openMocks;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -12,7 +13,8 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.junit.runners.Parameterized.Parameter;
 import org.junit.runners.Parameterized.Parameters;
-import org.mockito.Mockito;
+import org.mockito.InjectMocks;
+import org.mockito.Mock;
 
 import qa.thinogueiras.dao.LocacaoDAO;
 import qa.thinogueiras.entidades.Filme;
@@ -23,10 +25,16 @@ import qa.thinogueiras.exceptions.LocadoraException;
 @RunWith(Parameterized.class)
 public class CalculoValorLocacaoTest {
 	
-	private LocacaoService service;
-	private Usuario usuario;
+	@InjectMocks
+	private LocacaoService service;	
+	
+	@Mock
 	private LocacaoDAO dao;
+	
+	@Mock
 	private SPCService spc;
+	
+	private Usuario usuario;
 	
 	@Parameter
 	public List<Filme> filmes;
@@ -39,11 +47,7 @@ public class CalculoValorLocacaoTest {
 	
 	@Before
 	public void setup() {
-		service = new LocacaoService();
-		dao = Mockito.mock(LocacaoDAO.class);
-		service.setLocacaoDAO(dao);
-		spc = Mockito.mock(SPCService.class);
-		service.setSPCService(spc);
+		openMocks(this);
 	}
 	
 	private static Filme filme01 = new Filme("O jogo da imitação", 2, 3.5);
@@ -69,11 +73,7 @@ public class CalculoValorLocacaoTest {
 	@Test
 	public void deveCalcularValorLocacaoConsiderandoDescontos() throws LocadoraException {
 		usuario = new Usuario("Usuário 1");		
-		
-		Locacao resultado = service.alugarFilme(usuario, filmes);
-		
+		Locacao resultado = service.alugarFilme(usuario, filmes);		
 		assertEquals(valorLocacao, resultado.getValor());
 	}
-	
-
 }
