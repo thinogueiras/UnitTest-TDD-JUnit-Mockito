@@ -1,15 +1,20 @@
 package qa.thinogueiras.servicos;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.fail;
+import static org.junit.Assume.assumeFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 import static org.mockito.MockitoAnnotations.openMocks;
 import static qa.thinogueiras.builders.LocacaoBuilder.obterLocacao;
-import static qa.thinogueiras.utils.DataUtils.isMesmaData;
+import static qa.thinogueiras.matchers.Matchers.caiNumaSegunda;
+import static qa.thinogueiras.matchers.Matchers.hoje;
+import static qa.thinogueiras.matchers.Matchers.hojeComDiferencaDias;
+import static qa.thinogueiras.utils.DataUtils.verificarDiaSemana;
 
 import java.util.Arrays;
 import java.util.Calendar;
@@ -28,7 +33,6 @@ import qa.thinogueiras.entidades.Filme;
 import qa.thinogueiras.entidades.Locacao;
 import qa.thinogueiras.entidades.Usuario;
 import qa.thinogueiras.exceptions.LocadoraException;
-import qa.thinogueiras.utils.DataUtils;
 
 public class LocacaoServiceTest {	
 	
@@ -55,13 +59,17 @@ public class LocacaoServiceTest {
 	}
 
 	@Test
-	public void deveAlugarFilmeComSucesso() throws Exception {
+	public void deveAlugarFilmeComSucesso() throws LocadoraException {		
+		assumeFalse(verificarDiaSemana(new Date(), Calendar.SATURDAY));
+		
 		usuario = new Usuario("Usuario 1");
 		filmes = Arrays.asList(new Filme("Filme 1", 2, 5.0));
 
 		locacao = service.alugarFilme(usuario, filmes);
+		
 		assertEquals(5.0, locacao.getValor(), 0.01);
-		assertTrue(isMesmaData(locacao.getDataLocacao(), new Date()));
+		assertThat(locacao.getDataLocacao(), hoje());
+		assertThat(locacao.getDataRetorno(), hojeComDiferencaDias(1));
 	}
 
 	@Test
@@ -157,15 +165,15 @@ public class LocacaoServiceTest {
 	}
 
 	@Test
-	public void nãoDeveDevolverFilmeNoDomingo() throws LocadoraException {
+	public void deveDevolverFilmeNaSegundaAoAlugarNoSabado() throws LocadoraException {
+		assumeTrue(verificarDiaSemana(new Date(), Calendar.SATURDAY));
+		
 		usuario = new Usuario("Dominguinhos");
 		filmes = Arrays.asList(new Filme("Avatar", 3, 4.0));
 
-		Locacao retorno = service.alugarFilme(usuario, filmes);
+		Locacao retorno = service.alugarFilme(usuario, filmes);		
 
-		boolean segunda = DataUtils.verificarDiaSemana(retorno.getDataRetorno(), Calendar.MONDAY);
-
-		assertTrue(segunda);
+		assertThat(retorno.getDataRetorno(), caiNumaSegunda());
 	}
 
 	@Test
@@ -185,7 +193,7 @@ public class LocacaoServiceTest {
 	}
 
 	@Test
-	public void deveEnviarEmailParaLocacoesAtrasadas() throws LocadoraException {
+	public void deveEnviarEmailParaLocaçõesAtrasadas() throws LocadoraException {
 		Usuario usuario2 = new Usuario("Usuario atrasado");
 		Usuario usuario3 = new Usuario("Usuario em dia");
 		locacoes = Arrays.asList(
@@ -218,7 +226,7 @@ public class LocacaoServiceTest {
 	}
 	
 	@Test
-	public void deveProrrogarUmaLocacao() {
+	public void deveProrrogarUmaLocação() {
 		locacao = obterLocacao().agora();
 		
 		service.prorrogarLocacao(locacao, 3);
@@ -228,8 +236,8 @@ public class LocacaoServiceTest {
 		verify(dao).salvar(argCapt.capture());
 		Locacao locacaoCapturada = argCapt.getValue();
 		
-		assertEquals(15.0, locacaoCapturada.getValor());	
-		//assertEquals(new Date(), locacaoCapturada.getDataLocacao());
-		//assertEquals(obterDataComDiferencaDias(3), locacaoCapturada.getDataRetorno());
+		assertEquals(15.0, locacaoCapturada.getValor());		
+		assertThat(locacaoCapturada.getDataLocacao(), hoje());
+		assertThat(locacaoCapturada.getDataRetorno(), hojeComDiferencaDias(3));
 	}
 }
