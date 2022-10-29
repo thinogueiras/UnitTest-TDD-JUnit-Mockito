@@ -30,7 +30,7 @@
 
 * **A primeira execução é um pouco lenta, durante e após a segunda execução é que da para perceber o paralelismo funcionando**.
 
-
+---
 
 ## Autor
 **[Thiago Nogueira dos Santos](https://www.linkedin.com/in/thinogueiras/)**. <br />
