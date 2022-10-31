@@ -2,9 +2,7 @@ package qa.thinogueiras.servicos;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.fail;
-import static org.junit.Assume.assumeFalse;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assumptions.assumeTrue;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -34,42 +32,48 @@ import qa.thinogueiras.entidades.Locacao;
 import qa.thinogueiras.entidades.Usuario;
 import qa.thinogueiras.exceptions.LocadoraException;
 
-public class LocacaoServiceTest {	
-	
+public class LocacaoServiceTest {
+
 	private Locacao locacao;
 	private List<Filme> filmes;
 	private List<Locacao> locacoes;
 	private Usuario usuario;
-	
+
 	@InjectMocks
 	private LocacaoService service;
-	
+
 	@Mock
 	private LocacaoDAO dao;
-	
+
 	@Mock
-	private SPCService spcService;	
-	
+	private SPCService spcService;
+
 	@Mock
 	private EmailService emailService;
 
 	@BeforeEach
 	public void setup() {
-		openMocks(this);		
+		openMocks(this);
 	}
 
 	@Test
-	public void deveAlugarFilmeComSucesso() throws LocadoraException {		
-		assumeFalse(verificarDiaSemana(new Date(), Calendar.SATURDAY));
-		
+	public void deveAlugarFilmeComSucesso() throws LocadoraException {
 		usuario = new Usuario("Usuario 1");
 		filmes = Arrays.asList(new Filme("Filme 1", 2, 5.0));
 
 		locacao = service.alugarFilme(usuario, filmes);
-		
-		assertEquals(5.0, locacao.getValor(), 0.01);
-		assertThat(locacao.getDataLocacao(), hoje());
-		assertThat(locacao.getDataRetorno(), hojeComDiferencaDias(1));
+
+		if (verificarDiaSemana(new Date(), Calendar.SATURDAY)) {
+			assertThat(locacao.getDataRetorno(), caiNumaSegunda());
+			assertEquals(5.0, locacao.getValor(), 0.01);
+			assertThat(locacao.getDataLocacao(), hoje());
+		}
+
+		if (!verificarDiaSemana(new Date(), Calendar.SATURDAY)) {
+			assertThat(locacao.getDataRetorno(), hojeComDiferencaDias(1));
+			assertEquals(5.0, locacao.getValor(), 0.01);
+			assertThat(locacao.getDataLocacao(), hoje());
+		}
 	}
 
 	@Test
@@ -166,14 +170,14 @@ public class LocacaoServiceTest {
 
 	@Test
 	public void deveDevolverFilmeNaSegundaAoAlugarNoSabado() throws LocadoraException {
-		assumeTrue(verificarDiaSemana(new Date(), Calendar.SATURDAY));
-		
 		usuario = new Usuario("Dominguinhos");
 		filmes = Arrays.asList(new Filme("Avatar", 3, 4.0));
 
-		Locacao retorno = service.alugarFilme(usuario, filmes);		
+		Locacao retorno = service.alugarFilme(usuario, filmes);
 
-		assertThat(retorno.getDataRetorno(), caiNumaSegunda());
+		if (verificarDiaSemana(new Date(), Calendar.SATURDAY)) {
+			assertThat(retorno.getDataRetorno(), caiNumaSegunda());
+		}
 	}
 
 	@Test
@@ -196,47 +200,45 @@ public class LocacaoServiceTest {
 	public void deveEnviarEmailParaLocaçõesAtrasadas() throws LocadoraException {
 		Usuario usuario2 = new Usuario("Usuario atrasado");
 		Usuario usuario3 = new Usuario("Usuario em dia");
-		locacoes = Arrays.asList(
-				obterLocacao().atrasada().agora(),
-				obterLocacao().atrasada().comUsuario(usuario2).agora(),
-				obterLocacao().comUsuario(usuario3).agora());
-		
-		when(dao.obterLocacoesPendentes()).thenReturn(locacoes);			
-		service.notificarAtrasosNaDevolucao();		
-						
+		locacoes = Arrays.asList(obterLocacao().atrasada().agora(),
+				obterLocacao().atrasada().comUsuario(usuario2).agora(), obterLocacao().comUsuario(usuario3).agora());
+
+		when(dao.obterLocacoesPendentes()).thenReturn(locacoes);
+		service.notificarAtrasosNaDevolucao();
+
 		verify(emailService).notificarAtrasoLocacao(LocacaoBuilder.usuario);
 		verify(emailService).notificarAtrasoLocacao(usuario2);
 		verify(emailService, never()).notificarAtrasoLocacao(usuario3);
 		verifyNoMoreInteractions(emailService);
 	}
-	
+
 	@Test
 	public void deveTratarErroNoSPC() throws Exception {
 		usuario = new Usuario("Instabilidade SPC");
 		filmes = Arrays.asList(new Filme("O Lobo de Wall Street", 3, 4.50));
-		
+
 		when(spcService.getStatusSPC(usuario)).thenThrow(new Exception("Falha na consulta"));
-		
+
 		try {
 			service.alugarFilme(usuario, filmes);
 			fail();
 		} catch (LocadoraException e) {
 			assertEquals("Erro na consulta ao SPC", e.getMessage());
-		}		
+		}
 	}
-	
+
 	@Test
 	public void deveProrrogarUmaLocação() {
 		locacao = obterLocacao().agora();
-		
+
 		service.prorrogarLocacao(locacao, 3);
-		
+
 		ArgumentCaptor<Locacao> argCapt = ArgumentCaptor.forClass(Locacao.class);
-		
+
 		verify(dao).salvar(argCapt.capture());
 		Locacao locacaoCapturada = argCapt.getValue();
-		
-		assertEquals(15.0, locacaoCapturada.getValor());		
+
+		assertEquals(15.0, locacaoCapturada.getValor());
 		assertThat(locacaoCapturada.getDataLocacao(), hoje());
 		assertThat(locacaoCapturada.getDataRetorno(), hojeComDiferencaDias(3));
 	}
